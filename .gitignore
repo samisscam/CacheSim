@@ -1,0 +1,8 @@
+tests/run_tests
+src/cache_demo
+bench/bench_run
+*.o
+*.out
+.vscode/
+.idea/
+build/
