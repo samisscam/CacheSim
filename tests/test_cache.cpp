@@ -5,6 +5,12 @@
 #include "../include/LRUCache.h"
 #include "../include/LFUCache.h"
 #include "../include/Cache.h"
+#include "../include/TTLCache.h"
+
+#include <chrono>
+#include <thread>
+
+using namespace std::chrono_literals;
 
 TEST_CASE("LRU: basic get/put and miss handling", "[lru]") {
     LRUCache<int, std::string> cache(2);
@@ -145,4 +151,30 @@ TEST_CASE("LFU: erasing the minimum-frequency bucket keeps eviction correct", "[
     cache.put(4, 4);    // evicts 3 (freq 1), not 2 (freq 2)
     REQUIRE(cache.contains(2));
     REQUIRE_FALSE(cache.contains(3));
+}
+
+TEST_CASE("TTL: an entry is gone after its TTL elapses", "[ttl]") {
+    TTLCache<int, int> cache(std::make_unique<LRUCache<int, int>>(10), 20ms);
+    cache.put(1, 1);
+    REQUIRE(cache.get(1).has_value());
+    std::this_thread::sleep_for(40ms);
+    REQUIRE_FALSE(cache.get(1).has_value());
+}
+
+TEST_CASE("TTL: putWithTTL overrides the default per-entry", "[ttl]") {
+    TTLCache<int, int> cache(std::make_unique<LRUCache<int, int>>(10), 24h);
+    cache.putWithTTL(1, 1, 10ms);
+    cache.putWithTTL(2, 2, 24h);
+    std::this_thread::sleep_for(30ms);
+    cache.expireNow();
+    REQUIRE_FALSE(cache.contains(1));
+    REQUIRE(cache.contains(2));
+}
+
+TEST_CASE("TTL: still respects the underlying eviction policy's capacity", "[ttl]") {
+    TTLCache<int, int> cache(std::make_unique<LRUCache<int, int>>(1), 24h);
+    cache.put(1, 1);
+    cache.put(2, 2); // evicted by LRU capacity, not TTL
+    REQUIRE_FALSE(cache.contains(1));
+    REQUIRE(cache.contains(2));
 }

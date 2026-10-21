@@ -1,13 +1,16 @@
 // CLI demo for the LRU/LFU cache simulator.
 //
 // Usage:
-//   ./cache_demo [lru|lfu] [capacity]   run a small demo on one policy
+//   ./cache_demo [lru|lfu] [capacity] [--ttl-ms N]
+//                                       run a small demo on one policy,
+//                                       optionally wrapped in a TTL decorator
 //   ./cache_demo compare [capacity]     run LRU and LFU side by side on a
 //                                       frequency-vs-recency conflict case
 #include "../include/Cache.h"
 #include "../include/EvictionPolicy.h"
 #include "../include/LFUCache.h"
 #include "../include/LRUCache.h"
+#include "../include/TTLCache.h"
 
 #include <iostream>
 #include <memory>
@@ -21,10 +24,16 @@ static std::unique_ptr<StrPolicy> makePolicy(const std::string& name, int capaci
     return nullptr;
 }
 
-static void basicDemo(const std::string& policyName, int capacity) {
-    Cache<int, std::string> cache(makePolicy(policyName, capacity));
+static void basicDemo(const std::string& policyName, int capacity, int ttlMs) {
+    auto policy = makePolicy(policyName, capacity);
+    if (ttlMs > 0) {
+        policy = std::make_unique<TTLCache<int, std::string>>(
+            std::move(policy), std::chrono::milliseconds(ttlMs));
+    }
+    Cache<int, std::string> cache(std::move(policy));
 
-    std::cout << "=== " << policyName << " demo (capacity=" << capacity << ") ===\n\n";
+    std::cout << "=== " << policyName << " demo (capacity=" << capacity
+              << (ttlMs > 0 ? ", ttl_ms=" + std::to_string(ttlMs) : "") << ") ===\n\n";
     cache.put(1, "value-1");
     cache.put(2, "value-2");
     std::cout << "get(1) = " << cache.get(1).value_or("(miss)") << "\n";
@@ -55,14 +64,26 @@ static void compareDemo(int capacity) {
 }
 
 int main(int argc, char** argv) {
-    std::string mode = argc > 1 ? argv[1] : "lru";
-    int capacity = argc > 2 ? std::stoi(argv[2]) : 3;
+    std::string mode = "lru";
+    int capacity = 3;
+    int ttlMs = 0;
+    int positional = 0;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--ttl-ms" && i + 1 < argc) {
+            ttlMs = std::stoi(argv[++i]);
+        } else if (positional == 0) {
+            mode = arg; ++positional;
+        } else if (positional == 1) {
+            capacity = std::stoi(arg); ++positional;
+        }
+    }
 
     try {
         if (mode == "compare") {
             compareDemo(capacity);
         } else if (mode == "lru" || mode == "lfu") {
-            basicDemo(mode, capacity);
+            basicDemo(mode, capacity, ttlMs);
         } else {
             std::cerr << "Unknown mode '" << mode << "', expected 'lru', 'lfu' or 'compare'\n";
             return 1;

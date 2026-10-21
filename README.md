@@ -18,7 +18,7 @@ that cost measurable.
 | `LFUCache<K,V>` — frequency buckets, incremental `minFreq_` | Done | 2 |
 | `Cache<K,V>` facade | Done | 1 |
 | Catch2 suite — 15 cases / 36 assertions | Done | 2 |
-| `TTLCache` decorator (min-heap, generation-tagged lazy deletion) | Pending → `feature/ttl-cache` | 3 |
+| `TTLCache` decorator (min-heap, generation-tagged lazy deletion) | In review (this branch) | 3 |
 | `ThreadSafeCache` decorator / `ShardedCache` | Pending → `feature/thread-safe-cache`, `feature/sharded-cache` | 3 |
 | `NaiveMapCache` baseline + benchmark suite | Pending → `feature/benchmarks` | 4 |
 | Zipf web-server CLI demo | Pending → `feature/webserver-demo` | 4 |
@@ -37,6 +37,7 @@ make compare   # LRU vs LFU side by side on a frequency-vs-recency conflict
 ```bash
 ./src/cache_demo lfu 5
 ./src/cache_demo compare 3
+./src/cache_demo lfu 5 --ttl-ms 500
 ```
 
 ## Usage
