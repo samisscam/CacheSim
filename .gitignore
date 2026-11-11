@@ -1,8 +1,5 @@
 tests/run_tests
+tests/run_tests_tsan
+benchmarks/run_benchmarks
 src/cache_demo
-bench/bench_run
 *.o
-*.out
-.vscode/
-.idea/
-build/
