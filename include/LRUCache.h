@@ -1,11 +1,11 @@
 #pragma once
 #include "EvictionPolicy.h"
-#include <stdexcept>
 #include <unordered_map>
+#include <stdexcept>
 
-// LRU eviction with O(1) get/put: a hash map indexes into a doubly linked
-// list ordered by recency (head = most recent, tail = least recent).
-// Sentinel head/tail nodes remove the empty-list edge cases.
+// LRU eviction with O(1) get/put: a hand-rolled doubly linked list in recency
+// order (head = most recent, tail = least recent) plus a hash map from key
+// to node. Sentinel head/tail nodes remove first/last-node edge cases.
 template <typename K, typename V>
 class LRUCache : public EvictionPolicy<K, V> {
     struct Node {
@@ -42,8 +42,9 @@ public:
     std::optional<V> get(const K& key) override {
         auto it = map_.find(key);
         if (it == map_.end()) return std::nullopt;
-        moveToFront(it->second);
-        return it->second->value;
+        Node* node = it->second;
+        moveToFront(node);
+        return node->value;
     }
 
     void put(const K& key, const V& value) override {
