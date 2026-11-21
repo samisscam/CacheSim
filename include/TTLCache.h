@@ -1,19 +1,18 @@
 #pragma once
 #include "EvictionPolicy.h"
 #include <chrono>
-#include <cstdint>
-#include <functional>
-#include <memory>
 #include <queue>
-#include <unordered_map>
 #include <vector>
+#include <unordered_map>
+#include <memory>
 
-// Decorator that adds time-based expiry to any EvictionPolicy.
+// Decorator adding time-based expiry to any EvictionPolicy.
 //
-// A min-heap ordered by expiry time finds the next entry to expire in
-// O(log n). Since std::priority_queue can't remove arbitrary items, stale
-// heap entries (from overwritten or erased keys) are skipped lazily using a
-// per-key generation counter.
+// A min-heap keyed by expiry time yields the next entry to expire in
+// O(log n). std::priority_queue can't remove arbitrary items, so deletion is
+// lazy: each heap entry carries a generation number, and re-putting or
+// erasing a key bumps generation_[key]. Popped entries with an outdated
+// generation are stale and simply discarded.
 template <typename K, typename V>
 class TTLCache : public EvictionPolicy<K, V> {
     using Clock = std::chrono::steady_clock;
@@ -29,6 +28,7 @@ class TTLCache : public EvictionPolicy<K, V> {
     };
 
 public:
+    // defaultTTL applies to put(); use putWithTTL() to override per entry.
     TTLCache(std::unique_ptr<EvictionPolicy<K, V>> underlying,
              std::chrono::milliseconds defaultTTL)
         : underlying_(std::move(underlying)), defaultTTL_(defaultTTL) {}
@@ -57,14 +57,17 @@ public:
         return underlying_->erase(key);
     }
 
+    // Doesn't purge, since purging would mutate state in a const method.
     bool contains(const K& key) const override {
         auto it = expiry_.find(key);
         if (it != expiry_.end() && it->second <= Clock::now()) return false;
         return underlying_->contains(key);
     }
 
-    // May include expired entries that haven't been purged yet.
-    std::size_t size() const override { return underlying_->size(); }
+    // May include expired entries not yet lazily purged; call expireNow() first for an exact count.
+    std::size_t size() const override {
+        return underlying_->size();
+    }
 
     std::size_t capacity() const override { return underlying_->capacity(); }
 
@@ -72,7 +75,7 @@ public:
         return underlying_->peekEvictionCandidate();
     }
 
-    // Purges all expired entries and returns how many were removed.
+    // Purges all currently expired entries, e.g. from a periodic sweep.
     std::size_t expireNow() { return purgeExpired(); }
 
     std::size_t ttlQueueSizeForTesting() const { return heap_.size(); }
