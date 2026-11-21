@@ -1,15 +1,15 @@
 #pragma once
 #include "EvictionPolicy.h"
+#include <unordered_map>
 #include <list>
 #include <stdexcept>
-#include <unordered_map>
 
-// LFU eviction with O(1) get/put using frequency buckets.
-//
-// Each bucket holds the entries at one frequency, ordered by recency
-// (front = most recent). Ties on frequency are broken by evicting the
-// least recently used entry. minFreq_ tracks the lowest non-empty bucket
-// so eviction is a pop_back on that bucket.
+// LFU eviction with O(1) get/put (frequency-bucket construction).
+//   - freqBuckets_[f] holds every entry at frequency f, most recently touched first.
+//   - keyLocator_ maps key -> iterator into its bucket for O(1) removal.
+//   - minFreq_ is the smallest non-empty frequency, so eviction is a pop_back
+//     on freqBuckets_[minFreq_].
+// Ties on frequency are broken by evicting the least recently used entry.
 template <typename K, typename V>
 class LFUCache : public EvictionPolicy<K, V> {
     struct Entry {
@@ -79,7 +79,7 @@ public:
     }
 
 private:
-    // Moves an entry to the front of the next-higher frequency bucket.
+    // Moves an entry to the front of the next frequency bucket.
     void touch(BucketIter& it) {
         int f = it->freq;
         Entry moved = *it;
@@ -107,7 +107,8 @@ private:
         keyLocator_.erase(victimKey);
     }
 
-    // Only needed when erase() empties the minimum-frequency bucket.
+    // Only needed when erase() empties the min-frequency bucket; put() and
+    // evictLFU() never leave minFreq_ stale.
     int recomputeMinFreq() const {
         if (keyLocator_.empty()) return 0;
         int best = -1;
